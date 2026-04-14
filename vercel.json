@@ -1,5 +1,5 @@
 {
   "version": 2,
-  "installCommand": "node scripts/rewrite-lock-to-npmjs.js && npm install --ignore-scripts",
+  "installCommand": "node scripts/rewrite-lock-to-npmjs.js && rm -rf node_modules && npm ci --ignore-scripts",
   "rewrites": [{ "source": "/(.*)", "destination": "/api/$1" }]
 }
