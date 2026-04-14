@@ -1,6 +1,6 @@
 /**
- * 将 package-lock.json 中 registry.npm.taobao.org 的 tarball URL
- * 改写为 registry.npmjs.org，避免 Vercel 等境外环境无法拉取淘宝源导致缺包。
+ * 将 package-lock.json 中国内镜像的 tarball URL 改写为 registry.npmjs.org，
+ * 避免 Vercel 等境外环境无法解析 nlark / 淘宝源导致 npm install 失败。
  * 使用：node scripts/rewrite-lock-to-npmjs.js
  */
 const fs = require('fs')
@@ -10,11 +10,24 @@ const root = path.join(__dirname, '..')
 const lockPath = path.join(root, 'package-lock.json')
 const pkgPath = path.join(root, 'package.json')
 
+/** nlark / 旧 cnpm：…/包名/download/包名-版本.tgz */
+function nlarkToNpmjs(clean) {
+  const re =
+    /^https?:\/\/registry\.nlark\.com\/(@[^/]+\/[^/]+|[^/]+)\/download\/([^/]+\.tgz)$/i
+  const m = clean.match(re)
+  if (!m) return null
+  return `https://registry.npmjs.org/${m[1]}/-/${m[2]}`
+}
+
 function rewriteResolved(resolved) {
   if (!resolved || typeof resolved !== 'string') return resolved
+  const clean = resolved.split('?')[0]
+
+  const fromNlark = nlarkToNpmjs(clean)
+  if (fromNlark) return fromNlark
+
   const taobao = 'registry.npm.taobao.org'
   if (!resolved.includes(taobao)) return resolved
-  const clean = resolved.split('?')[0]
   const marker = '/download/'
   const i = clean.indexOf(marker)
   if (i === -1) {
