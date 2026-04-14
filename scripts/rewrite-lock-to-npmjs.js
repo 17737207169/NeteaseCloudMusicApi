@@ -10,10 +10,35 @@ const root = path.join(__dirname, '..')
 const lockPath = path.join(root, 'package-lock.json')
 const pkgPath = path.join(root, 'package.json')
 
+/**
+ * 与 cnpm / nlark / npmmirror 常见格式一致：…/包名或@scope名/download/xxx.tgz
+ * 统一为 https://registry.npmjs.org/<pkg>/-/<tarball>
+ */
+function mirrorDownloadUrlsToNpmjs(text) {
+  const hosts = ['registry\\.nlark\\.com', 'registry\\.npmmirror\\.com']
+  let out = text
+  for (const host of hosts) {
+    const re = new RegExp(
+      `https?://${host}/((?:@[^/]+/)?[^/]+)/download/([^"\\s]+\\.tgz)`,
+      'gi',
+    )
+    out = out.replace(re, 'https://registry.npmjs.org/$1/-/$2')
+  }
+  return out
+}
+
 /** nlark / 旧 cnpm：…/包名/download/包名-版本.tgz */
 function nlarkToNpmjs(clean) {
   const re =
     /^https?:\/\/registry\.nlark\.com\/(@[^/]+\/[^/]+|[^/]+)\/download\/([^/]+\.tgz)$/i
+  const m = clean.match(re)
+  if (!m) return null
+  return `https://registry.npmjs.org/${m[1]}/-/${m[2]}`
+}
+
+function npmmirrorToNpmjs(clean) {
+  const re =
+    /^https?:\/\/registry\.npmmirror\.com\/(@[^/]+\/[^/]+|[^/]+)\/download\/([^/]+\.tgz)$/i
   const m = clean.match(re)
   if (!m) return null
   return `https://registry.npmjs.org/${m[1]}/-/${m[2]}`
@@ -25,6 +50,9 @@ function rewriteResolved(resolved) {
 
   const fromNlark = nlarkToNpmjs(clean)
   if (fromNlark) return fromNlark
+
+  const fromNpmmirror = npmmirrorToNpmjs(clean)
+  if (fromNpmmirror) return fromNpmmirror
 
   const taobao = 'registry.npm.taobao.org'
   if (!resolved.includes(taobao)) return resolved
@@ -54,7 +82,14 @@ function walk(obj) {
   for (const k of Object.keys(obj)) walk(obj[k])
 }
 
-const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'))
+let lockText = fs.readFileSync(lockPath, 'utf8')
+const before = lockText
+lockText = mirrorDownloadUrlsToNpmjs(lockText)
+if (lockText !== before) {
+  console.log('[rewrite-lock] 已对 lock 文本中的 nlark/npmmirror URL 做整文件替换')
+}
+
+const lock = JSON.parse(lockText)
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
 
 walk(lock)
