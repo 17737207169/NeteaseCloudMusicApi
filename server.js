@@ -222,7 +222,14 @@ async function consturctServer(moduleDefs) {
         const moduleResponse = await moduleDef.module(query, (...params) => {
           // 参数注入客户端IP
           const obj = [...params]
-          let ip = req.ip
+          let ip = req.ip || ''
+          const xff = req.headers['x-forwarded-for']
+          if (!ip && xff) {
+            ip = String(xff).split(',')[0].trim()
+          }
+          if (!ip && req.socket && req.socket.remoteAddress) {
+            ip = req.socket.remoteAddress
+          }
 
           if (ip.substr(0, 7) == '::ffff:') {
             ip = ip.substr(7)
@@ -234,7 +241,7 @@ async function consturctServer(moduleDefs) {
           }
           return request(...obj)
         })
-        console.log('[OK]', decode(req.originalUrl))
+        console.log('[OK]', decode(req.originalUrl || req.url || ''))
 
         const cookies = moduleResponse.cookie
         if (Array.isArray(cookies) && cookies.length > 0) {
@@ -252,7 +259,7 @@ async function consturctServer(moduleDefs) {
         }
         res.status(moduleResponse.status).send(moduleResponse.body)
       } catch (/** @type {*} */ moduleResponse) {
-        console.log('[ERR]', decode(req.originalUrl), {
+        console.log('[ERR]', decode(req.originalUrl || req.url || ''), {
           status: moduleResponse.status,
           body: moduleResponse.body,
         })
